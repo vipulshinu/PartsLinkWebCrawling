@@ -6,12 +6,17 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Node;
 
 import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class PartslinkService {
 
     Map<String,String> vehicleDetails = new HashMap<>();
+    String vehicleParent;
+    Map<String,String> vehicleModels = new LinkedHashMap<>();
+    Map<String,String> modelLinks = new LinkedHashMap<>();
 
     public void getAllUrls(String fetchedData, String companyName){
         String vehicleUrl = Arrays.stream(fetchedData.split("\n")).filter(e->e.contains(companyName+"_parts")).collect(Collectors.joining());
@@ -22,19 +27,21 @@ public class PartslinkService {
     private Node getURLData(String partsUrl, String companyName) throws IOException {
         Document doc = Jsoup.connect(partsUrl).get();
         String title = doc.title().split(" ")[0];
-        System.out.println(title);
         if(!(companyName.contains(title.toLowerCase())))
         {
             System.out.println("Need to Login.....");
             System.exit(0);
         }
         this.vehicleDetails.put("BrandName",title);
+        this.vehicleParent = doc.childNode(2).childNode(3).childNode(1).childNode(1).childNode(0).childNode(8).attr("href").split("/")[1];
+        System.out.println("Vehicle Parent:: "+ vehicleParent);
         Node modelList = doc.childNode(2).childNode(3).childNode(2).childNode(0).childNode(0).childNode(0).childNode(1).childNode(0).childNode(1);
         return modelList;
     }
 
     public void getModelLinks(String partsUrl, String companyName){
         ObjectMapper objectMapper = new ObjectMapper();
+
 
         try {
             Node models = getURLData(partsUrl, companyName);
@@ -45,22 +52,16 @@ public class PartslinkService {
 //            String modCode = sc.next();
             for(int i=0;i< models.childNodeSize();i++){
                 if(models.childNode(i).childNodes().size()>1){
-//                    if(models.childNode(i).childNode(1).childNode(0).childNode(0).toString().toLowerCase().equals(modName)
-//                        && models.childNode(i).childNode(0).childNode(0).toString().toLowerCase().equals(modCode)){
                         String modelCode = models.childNode(i).childNode(0).childNode(0).outerHtml();
                         String modelName = models.childNode(i).childNode(1).childNode(0).childNode(0).toString();
-                        System.out.println(modelCode + " "+modelName);
-                        vehicleDetails.put("ModelName",modelName);
-                        vehicleDetails.put("ModelCode",modelCode);
-//                    }
-//                    else{
-//                        continue;
-//                    }
+                        String modelUrl = models.childNode(i).attr("url");
+                        this.modelLinks.put(modelName,modelUrl);
+                        this.vehicleModels.put(modelCode,modelName);
                 }
             }
-            for(int i=0;i< vehicleDetails.size();i++){
-                System.out.println(vehicleDetails.entrySet());
-            }
+            getSubUrlData(companyName);
+                System.out.println(modelLinks.entrySet());
+
 //            String vehicleSubtype = partsUrl.toString().split("=")[1];
 //
 //            String baseUrl = "https://www.partslink24.com/";
@@ -97,5 +98,21 @@ public class PartslinkService {
         }
 
 
+    }
+
+    private void getSubUrlData(String companyName) {
+        //Sub Url
+        StringBuilder sb = new StringBuilder();
+        String baseUrl = "https://www.partslink24.com/";
+        sb.append(baseUrl).append(this.vehicleParent).append("/").append(companyName+"_parts").append("/").append(this.modelLinks.get("MICRA"));
+        System.out.println(sb);
+        try {
+            URL url = new URL(sb.toString());
+            Document subDoc = Jsoup.connect(String.valueOf(url)).get();
+            System.out.println(subDoc);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
